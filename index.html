@@ -121,6 +121,7 @@
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
         isListening = true;
@@ -164,15 +165,13 @@
 
       recognition.onend = () => {
         isListening = false;
-        // If autoRestart is enabled, restart automatically; otherwise update UI to stopped state
         if (autoRestart) {
-          // small delay to avoid rapid restart loops
+          // Restart immediately without recreating the recognizer instance;
+          // this avoids the extra browser-side pause caused by frequent restarts.
           restartTimer = setTimeout(() => {
             restartTimer = null;
-            if (!autoRestart) return;
+            if (!autoRestart || !recognition) return;
             try {
-              // recreate recognition to ensure fresh state
-              createRecognition();
               recognition.start();
             } catch (err) {
               autoRestart = false;
@@ -180,7 +179,7 @@
               stopBtn.disabled = true;
               updateStatus('restart failed: ' + (err && err.message ? err.message : err));
             }
-          }, 250);
+          }, 100);
         } else {
           transcriptArea.value = committedTranscript;
           startBtn.disabled = false;
@@ -192,13 +191,17 @@
 
     startBtn.addEventListener('click', () => {
       if (!SpeechRecognition) return;
-      autoRestart = true; // enable automatic restart until user stops
+      autoRestart = true;
       userEditedTranscript = false;
       interimTranscript = '';
       lastRenderedInterim = '';
       if (!recognition) createRecognition();
       committedTranscript = transcriptArea.value.trim();
-      try { recognition.start(); } catch (error) { updateStatus('cannot start recognition: ' + error.message); }
+      try {
+        recognition.start();
+      } catch (error) {
+        updateStatus('cannot start recognition: ' + (error && error.message ? error.message : error));
+      }
     });
 
     stopBtn.addEventListener('click', () => {
